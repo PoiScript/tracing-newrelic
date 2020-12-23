@@ -1,0 +1,22 @@
+[package]
+name = "tracing-newrelic"
+version = "0.1.0"
+authors = ["PoiScript <poiscript@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+tracing-core = "0.1.17"
+tracing-subscriber = "0.2.15"
+tokio = { version = "0.3.6", features = ["full"] }
+futures = "0.3.8"
+uuid = { version = "0.8", features = ["v4"] }
+
+[dependencies.newrelic]
+package = "newrelic-telemetry"
+branch = "main"
+git = "https://github.com/newrelic/newrelic-telemetry-sdk-rust"
+features = ["blocking"]
+
+[dev-dependencies]
+env_logger = "0.8.2"
+tracing = "0.1.22"
