@@ -1,5 +1,7 @@
 use crate::reporter::Reporter;
-
+/// A [`Reporter`] that simply logs trace data to stdout
+///
+/// [`Reporter`]: ../Reporter
 pub struct NoopReport;
 
 impl Reporter for NoopReport {

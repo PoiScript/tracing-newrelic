@@ -1,12 +1,19 @@
 # tracing-newrelic
 
-[New Relic] integration for tracing
+New Relic integration for tracing
 
-# Overview
+## Overview
 
-This crate provides a layer for collecting trace data from `tracing` and repoters for sending them to [New Relic].
+This crate provides a layer for collecting trace data from [`tracing`] and reporters for sending them to [New Relic].
 
-# Examples
+`tracing::Span` and `tracing::Event` will be tried as New Relic Span.
+
+`tracing::Attribute` and `tracing::Metadata` wil be tried as New Relic Custom Attributes.
+
+[`tracing`]: https://github.com/tokio-rs/tracing
+[New Relic]: https://newrelic.com
+
+## Examples
 
 ```rust
 use std::thread::sleep;
@@ -50,7 +57,10 @@ fn main() {
 
 3. You should see a entry span named `foobar` and click it for more details:
 
-![new relic admin screenshot](./screenshot.png)
+<img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot.png" alt="newrelic screenshot" />
 
-[New Relic]: https://newrelic.com/
-[New Relic One]: http://one.newrelic.com/
+[New Relic One]: http://one.newrelic.com
+
+## License
+
+MIT

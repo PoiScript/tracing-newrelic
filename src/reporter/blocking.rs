@@ -3,6 +3,9 @@ use newrelic::ClientBuilder;
 
 use crate::reporter::Reporter;
 
+/// A [`Reporter`] using `newrelic_telemetry::blocking::Client`
+///
+/// [`Reporter`]: ../Reporter
 pub struct BlockingReporter {
     client: Client,
 }

@@ -6,12 +6,13 @@ use uuid::Uuid;
 
 pub use newrelic::attribute::Value;
 
+/// Trace data collected from Event
 pub struct TraceEvent {
-    /// id
+    /// Event id
     pub id: String,
-    /// created time
+    /// Event created time
     pub created: SystemTime,
-    /// atrributes collected from `tracing` `Event`
+    /// Atrributes collected from Event
     pub attrs: HashMap<String, Value>,
 }
 
@@ -29,17 +30,18 @@ impl TraceEvent {
     }
 
     pub fn set_parent_id(&mut self, id: &str) {
-        self.attrs.insert("parent.id".into(), id.into());
+        self.set_attribute("parent.id", id.into());
     }
 }
 
+/// Trace data collected from Span
 pub struct TraceSpan {
-    // attributes collected from `tracing` `Span`
+    /// Attributes collected from Span
     pub attrs: HashMap<String, newrelic::attribute::Value>,
-    // events collected from `tracing` `Span`
-    //
-    // each `TraceSpan` contains at least one event
-    // which will be the root span in new relic
+    /// Events collected from Span
+    ///
+    /// Each `TraceSpan` contains at least one event
+    /// which will be the root span in new relic
     pub events: Vec<TraceEvent>,
 }
 

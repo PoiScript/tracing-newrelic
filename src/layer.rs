@@ -18,19 +18,9 @@ macro_rules! with_struct {
             }
         }
 
-        impl From<Option<&'static str>> for $name {
-            fn from(val: Option<&'static str>) -> Self {
-                $name(val)
-            }
-        }
-
         impl From<bool> for $name {
             fn from(val: bool) -> Self {
-                if val {
-                    $name(Some($default))
-                } else {
-                    $name(None)
-                }
+                $name(if val { Some($default) } else { None })
             }
         }
     };
@@ -57,6 +47,14 @@ macro_rules! with_method {
     };
 }
 
+/// A [`Layer`] that collects newrelic-compatible data from `tracing` span/event.
+///
+/// This layer collects data from `tracing` span/event and reports them using [`Reporter`].
+///
+/// By default it will includes information from fields, `name` from metadata and execute `duration`.
+/// You can override the default behavior using `with_*` methods.
+///
+/// [`Layer`]: tracing_subscriber::layer::Layer
 pub struct NewRelicLayer<R: Reporter> {
     reporter: R,
     with_name: WithName,
@@ -72,6 +70,7 @@ impl<R> NewRelicLayer<R>
 where
     R: Reporter,
 {
+    /// Create a new `NewRelicLayer` with given reporter
     pub fn new(reporter: R) -> Self {
         NewRelicLayer {
             reporter,
@@ -86,61 +85,73 @@ where
     }
 
     with_method!(
-        /// Whether or not the `name` of the span/event is collected
+        /// Whether or not the [`name`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `name`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`name`]: tracing_core::Metadata::name
         with_name,
         WithName
     );
     with_method!(
-        /// Whether or not the `level` of the span/event is collected
+        /// Whether or not the [`level`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `level`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`level`]: tracing_core::Metadata::level
         with_level,
         WithLevel
     );
     with_method!(
-        /// Whether or not the `target` of the span/event is collected
+        /// Whether or not the [`target`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.target`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`target`]: tracing_core::Metadata::target
         with_target,
         WithTarget
     );
     with_method!(
-        /// Whether or not the `module_path` of the span/event is collected
+        /// Whether or not the [`module_path`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.module`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`module_path`]: tracing_core::Metadata::module_path
         with_module_path,
         WithModulePath
     );
     with_method!(
-        /// Whether or not the `file` of the span/event is collected
+        /// Whether or not the [`file`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.file`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`file`]: tracing_core::Metadata::file
         with_file,
         WithFile
     );
     with_method!(
-        /// Whether or not the `line` of the span/event is collected
+        /// Whether or not the [`line`] of span/event is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.line`
         /// + `&'static str`: enable with custom attribute key
+        ///
+        /// [`line`]: tracing_core::Metadata::line
         with_line,
         WithLine
     );
     with_method!(
-        /// Whether or not the `duration` of the span/event is collected
+        /// Whether or not the `duration` of span is collected
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `duration.ms`
