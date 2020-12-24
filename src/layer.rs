@@ -57,6 +57,7 @@ macro_rules! with_method {
 /// [`Layer`]: tracing_subscriber::layer::Layer
 pub struct NewRelicLayer<R: Reporter> {
     reporter: R,
+    with_event: bool,
     with_name: WithName,
     with_level: WithLevel,
     with_target: WithTarget,
@@ -74,6 +75,7 @@ where
     pub fn new(reporter: R) -> Self {
         NewRelicLayer {
             reporter,
+            with_event: true,
             with_name: true.into(),
             with_level: false.into(),
             with_target: false.into(),
@@ -82,6 +84,12 @@ where
             with_line: false.into(),
             with_duration: true.into(),
         }
+    }
+
+    /// Whether or not the events of span is collected
+    pub fn with_event(mut self, enable: bool) -> Self {
+        self.with_event = enable;
+        self
     }
 
     with_method!(
@@ -217,6 +225,10 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
+        if !self.with_event {
+            return;
+        }
+
         // ignore event that is out of current span
         if let Some(id) = ctx.current_span().id() {
             let span = ctx.span(id).expect("span not found");
