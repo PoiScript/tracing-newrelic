@@ -1,20 +1,24 @@
 [package]
 name = "tracing-newrelic"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["PoiScript <poiscript@gmail.com>"]
+description = "New Relic integration for tracing"
 edition = "2018"
+homepage = "https://github.com/PoiScript/tracing-newrelic"
+repository = "https://github.com/PoiScript/tracing-newrelic"
+keywords = ["tracing", "newrelic", "metrics", "logging"]
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
-tracing-core = "0.1.17"
-tracing-subscriber = "0.2.15"
-tokio = { version = "0.3.6", features = ["full"] }
-futures = "0.3.8"
+tracing-core = "0.1"
+tracing-subscriber = "0.2"
 uuid = { version = "0.8", features = ["v4"] }
 
 [dependencies.newrelic]
 package = "newrelic-telemetry"
-branch = "main"
 git = "https://github.com/newrelic/newrelic-telemetry-sdk-rust"
+rev = "54a31820c7ed9f85f25a5b4a083848c3497f5e70"
 features = ["blocking"]
 
 [dev-dependencies]
