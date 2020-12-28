@@ -211,3 +211,17 @@ impl Visit for TraceEvent {
             .insert(field.name().into(), Value::Str(format!("{:?}", value)));
     }
 }
+
+// ==== impl Default ====
+
+impl Default for TraceEvent {
+    fn default() -> Self {
+        TraceEvent::new()
+    }
+}
+
+impl Default for TraceSpan {
+    fn default() -> Self {
+        TraceSpan::new()
+    }
+}
