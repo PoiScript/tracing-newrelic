@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 pub use newrelic::attribute::Value;
 
+#[derive(Debug)]
 /// Trace data collected from Event
 pub struct TraceEvent {
     /// Event id
@@ -34,6 +35,7 @@ impl TraceEvent {
     }
 }
 
+#[derive(Debug)]
 /// Trace data collected from Span
 pub struct TraceSpan {
     /// Attributes collected from Span

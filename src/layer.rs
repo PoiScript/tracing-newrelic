@@ -291,7 +291,7 @@ where
                 }
             }
 
-            self.reporter.report(trace_span.into_batch());
+            self.reporter.report(trace_span);
         }
     }
 }

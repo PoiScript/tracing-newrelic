@@ -1,5 +1,4 @@
-mod blocking;
-mod noop;
+use crate::span;
 
 /// Reports trace data
 ///
@@ -12,8 +11,11 @@ mod noop;
 /// [`NoopReport`]: NoopReport
 /// [`BlockingReporter`]: BlockingReporter
 pub trait Reporter {
-    fn report(&self, batch: newrelic::SpanBatch);
+    fn report(&self, span: span::TraceSpan);
 }
+
+mod blocking;
+mod noop;
 
 pub use blocking::BlockingReporter;
 pub use noop::NoopReport;

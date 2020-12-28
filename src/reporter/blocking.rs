@@ -2,6 +2,7 @@ use newrelic::blocking::Client;
 use newrelic::ClientBuilder;
 
 use crate::reporter::Reporter;
+use crate::span::TraceSpan;
 
 /// A [`Reporter`] using `newrelic_telemetry::blocking::Client`
 ///
@@ -23,8 +24,8 @@ impl BlockingReporter {
 }
 
 impl Reporter for BlockingReporter {
-    fn report(&self, batch: newrelic::SpanBatch) {
-        self.client.send_spans(batch);
+    fn report(&self, span: TraceSpan) {
+        self.client.send_spans(span.into_batch());
     }
 }
 

@@ -69,3 +69,4 @@ mod span;
 
 pub use layer::NewRelicLayer;
 pub use reporter::*;
+pub use span::*;
