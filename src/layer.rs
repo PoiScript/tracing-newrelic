@@ -28,11 +28,12 @@ macro_rules! with_struct {
 
 with_struct!(WithName, "name");
 with_struct!(WithLevel, "level");
-with_struct!(WithTarget, "source.target");
+with_struct!(WithTarget, "target");
 with_struct!(WithModulePath, "source.module");
 with_struct!(WithFile, "source.file");
 with_struct!(WithLine, "source.line");
 with_struct!(WithDuration, "duration.ms");
+with_struct!(WithKind, "kind");
 
 macro_rules! with_method {
     ($(#[$meta:meta])* $name:ident, $ty:ident) => {
@@ -51,14 +52,15 @@ macro_rules! with_method {
 ///
 /// This layer collects data from `tracing` span/event and reports them using [`Reporter`].
 ///
-/// By default it will includes information from fields, `name` from metadata and execute `duration`.
+/// By default it will includes fields, `span_name` and `duration`.
 /// You can override the default behavior using `with_*` methods.
 ///
 /// [`Layer`]: tracing_subscriber::layer::Layer
 pub struct NewRelicLayer<R: Reporter> {
     reporter: R,
     with_event: bool,
-    with_name: WithName,
+    with_span_name: WithName,
+    with_kind: WithKind,
     with_level: WithLevel,
     with_target: WithTarget,
     with_module_path: WithModulePath,
@@ -76,7 +78,8 @@ where
         NewRelicLayer {
             reporter,
             with_event: true,
-            with_name: true.into(),
+            with_span_name: true.into(),
+            with_kind: false.into(),
             with_level: false.into(),
             with_target: false.into(),
             with_module_path: false.into(),
@@ -93,18 +96,27 @@ where
     }
 
     with_method!(
-        /// Whether or not the [`name`] of span/event is collected
+        /// Whether or not the [`name`] of span is collected. Enabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `name`
         /// + `&'static str`: enable with custom attribute key
         ///
         /// [`name`]: tracing_core::Metadata::name
-        with_name,
+        with_span_name,
         WithName
     );
     with_method!(
-        /// Whether or not the [`level`] of span/event is collected
+        /// Whether or not the `kind` of span/event is collected. Disabled by default.
+        ///
+        /// + `false`: disable
+        /// + `true`: enable with default attribute key `kind`
+        /// + `&'static str`: enable with custom attribute key
+        with_kind,
+        WithKind
+    );
+    with_method!(
+        /// Whether or not the [`level`] of span/event is collected. Disabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `level`
@@ -115,7 +127,7 @@ where
         WithLevel
     );
     with_method!(
-        /// Whether or not the [`target`] of span/event is collected
+        /// Whether or not the [`target`] of span/event is collected. Disabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.target`
@@ -126,7 +138,7 @@ where
         WithTarget
     );
     with_method!(
-        /// Whether or not the [`module_path`] of span/event is collected
+        /// Whether or not the [`module_path`] of span/event is collected. Disabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.module`
@@ -137,7 +149,7 @@ where
         WithModulePath
     );
     with_method!(
-        /// Whether or not the [`file`] of span/event is collected
+        /// Whether or not the [`file`] of span/event is collected. Disabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.file`
@@ -148,7 +160,7 @@ where
         WithFile
     );
     with_method!(
-        /// Whether or not the [`line`] of span/event is collected
+        /// Whether or not the [`line`] of span/event is collected. Disabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `source.line`
@@ -159,7 +171,7 @@ where
         WithLine
     );
     with_method!(
-        /// Whether or not the `duration` of span is collected
+        /// Whether or not the `duration` of span is collected. Enabled by default.
         ///
         /// + `false`: disable
         /// + `true`: enable with default attribute key `duration.ms`
@@ -169,29 +181,42 @@ where
     );
 
     fn record_metadata(&self, event: &mut TraceEvent, metadata: &Metadata) {
-        if let WithName(Some(key)) = self.with_name {
-            event.set_attribute(key, metadata.name().into());
+        if metadata.is_span() {
+            if let WithKind(Some(key)) = self.with_kind {
+                event.set_attribute(key, "span".into());
+            }
+
+            if let WithName(Some(key)) = self.with_span_name {
+                event.set_attribute(key, metadata.name().into());
+            }
         }
+
+        if metadata.is_event() {
+            if let WithKind(Some(key)) = self.with_kind {
+                event.set_attribute(key, "event".into());
+            }
+        }
+
         if let WithLevel(Some(key)) = self.with_level {
             event.set_attribute(key, Value::Str(metadata.level().to_string()));
         }
+
         if let WithTarget(Some(key)) = self.with_target {
             event.set_attribute(key, metadata.target().into());
         }
-        if let WithModulePath(Some(key)) = self.with_module_path {
-            if let Some(module_path) = metadata.module_path() {
-                event.set_attribute(key, module_path.into());
-            }
+
+        if let (WithModulePath(Some(key)), Some(module_path)) =
+            (&self.with_module_path, metadata.module_path())
+        {
+            event.set_attribute(key, module_path.into());
         }
-        if let WithFile(Some(key)) = self.with_file {
-            if let Some(file) = metadata.file() {
-                event.set_attribute(key, file.into());
-            }
+
+        if let (WithFile(Some(key)), Some(file)) = (&self.with_file, metadata.file()) {
+            event.set_attribute(key, file.into());
         }
-        if let WithLine(Some(key)) = self.with_line {
-            if let Some(line) = metadata.line() {
-                event.set_attribute(key, line.into());
-            }
+
+        if let (WithLine(Some(key)), Some(line)) = (&self.with_line, metadata.line()) {
+            event.set_attribute(key, line.into());
         }
     }
 }

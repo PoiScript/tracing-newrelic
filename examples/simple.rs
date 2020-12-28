@@ -20,7 +20,8 @@ fn main() {
     env_logger::init();
 
     let layer = NewRelicLayer::new(NoopReport)
-        .with_name(true)
+        .with_span_name(true)
+        .with_kind(true)
         .with_level(true)
         .with_target(true)
         .with_module_path(true)
