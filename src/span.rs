@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 pub use newrelic::attribute::Value;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Trace data collected from Event
 pub struct TraceEvent {
     /// Event id
@@ -20,8 +20,8 @@ pub struct TraceEvent {
 impl TraceEvent {
     pub fn new() -> TraceEvent {
         TraceEvent {
-            id: Uuid::new_v4().to_string(),
-            created: SystemTime::now(),
+            id: next_event_id(),
+            created: now(),
             attrs: HashMap::new(),
         }
     }
@@ -35,11 +35,11 @@ impl TraceEvent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 /// Trace data collected from Span
 pub struct TraceSpan {
     /// Attributes collected from Span
-    pub attrs: HashMap<String, newrelic::attribute::Value>,
+    pub attrs: HashMap<String, Value>,
     /// Events collected from Span
     ///
     /// Each `TraceSpan` contains at least one event
@@ -87,7 +87,7 @@ impl TraceSpan {
 
         let mut batch = newrelic::SpanBatch::new();
 
-        let trace_id = Uuid::new_v4().to_string();
+        let trace_id = next_trace_id();
 
         for (key, value) in attrs {
             batch.set_attribute(&key, value);
@@ -112,6 +112,53 @@ impl TraceSpan {
         }
 
         batch
+    }
+}
+
+// ===== id gen =====
+
+#[inline]
+fn next_trace_id() -> String {
+    if cfg!(feature = "__mocking") {
+        use std::cell::RefCell;
+
+        thread_local! {
+            static COUNT: RefCell<i32> = RefCell::new(0);
+        }
+
+        COUNT.with(|count| {
+            *count.borrow_mut() += 1;
+            format!("trace{}", count.borrow())
+        })
+    } else {
+        Uuid::new_v4().to_string()
+    }
+}
+
+#[inline]
+fn next_event_id() -> String {
+    if cfg!(feature = "__mocking") {
+        use std::cell::RefCell;
+
+        thread_local! {
+            static COUNT: RefCell<i32> = RefCell::new(0);
+        }
+
+        COUNT.with(|count| {
+            *count.borrow_mut() += 1;
+            format!("event{}", count.borrow())
+        })
+    } else {
+        Uuid::new_v4().to_string()
+    }
+}
+
+#[inline]
+fn now() -> SystemTime {
+    if cfg!(feature = "__mocking") {
+        UNIX_EPOCH
+    } else {
+        SystemTime::now()
     }
 }
 

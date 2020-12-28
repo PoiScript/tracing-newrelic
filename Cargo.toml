@@ -23,4 +23,13 @@ features = ["blocking"]
 
 [dev-dependencies]
 env_logger = "0.8.2"
+pretty_assertions = "0.6.1"
 tracing = "0.1.22"
+
+[features]
+# for integration testing only
+__mocking = []
+
+[[test]]
+name = "foobar"
+required-features = ["__mocking"]
