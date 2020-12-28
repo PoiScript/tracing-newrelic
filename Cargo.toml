@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 tracing-core = "0.1"
-tracing-subscriber = "0.2"
+tracing-subscriber = { version = "0.2", default-features = false, features = ["registry"] }
 uuid = { version = "0.8", features = ["v4"] }
 
 [dependencies.newrelic]
