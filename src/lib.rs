@@ -67,6 +67,6 @@ mod layer;
 mod reporter;
 mod span;
 
-pub use layer::NewRelicLayer;
+pub use layer::{NewRelicLayer, WithEvent};
 pub use reporter::*;
 pub use span::*;

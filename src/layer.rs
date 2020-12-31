@@ -48,6 +48,25 @@ macro_rules! with_method {
     };
 }
 
+pub enum WithEvent {
+    /// Events are ignored
+    None,
+    /// Events fields are flattened into its parent span
+    Flatten,
+    /// Events are recorded as span
+    All,
+}
+
+impl From<bool> for WithEvent {
+    fn from(val: bool) -> Self {
+        if val {
+            WithEvent::All
+        } else {
+            WithEvent::None
+        }
+    }
+}
+
 /// A [`Layer`] that collects newrelic-compatible data from `tracing` span/event.
 ///
 /// This layer collects data from `tracing` span/event and reports them using [`Reporter`].
@@ -58,7 +77,7 @@ macro_rules! with_method {
 /// [`Layer`]: tracing_subscriber::layer::Layer
 pub struct NewRelicLayer<R: Reporter> {
     reporter: R,
-    with_event: bool,
+    with_event: WithEvent,
     with_span_name: WithName,
     with_kind: WithKind,
     with_level: WithLevel,
@@ -77,7 +96,7 @@ where
     pub fn new(reporter: R) -> Self {
         NewRelicLayer {
             reporter,
-            with_event: true,
+            with_event: WithEvent::All,
             with_span_name: true.into(),
             with_kind: false.into(),
             with_level: false.into(),
@@ -89,9 +108,13 @@ where
         }
     }
 
-    /// Whether or not the events of span is collected
-    pub fn with_event(mut self, enable: bool) -> Self {
-        self.with_event = enable;
+    /// How the events of span is collected. `WithEvent::All` by default.
+    ///
+    /// + `WithEvent::None`: events are ignored
+    /// + `WithEvent::Flatten`: events fields are flattened into its parent span
+    /// + `WithEvent::All`: events are recorded as span
+    pub fn with_event(mut self, val: WithEvent) -> Self {
+        self.with_event = val;
         self
     }
 
@@ -250,7 +273,7 @@ where
     }
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        if !self.with_event {
+        if let WithEvent::None = self.with_event {
             return;
         }
 
@@ -260,15 +283,23 @@ where
             let mut extensions = span.extensions_mut();
 
             if let Some(trace_span) = extensions.get_mut::<TraceSpan>() {
-                let mut trace_event = TraceEvent::new();
+                match self.with_event {
+                    WithEvent::All => {
+                        let mut trace_event = TraceEvent::new();
 
-                trace_event.set_parent_id(&trace_span.root().id);
+                        trace_event.set_parent_id(&trace_span.root().id);
 
-                self.record_metadata(&mut trace_event, event.metadata());
+                        self.record_metadata(&mut trace_event, event.metadata());
 
-                event.record(&mut trace_event);
+                        event.record(&mut trace_event);
 
-                trace_span.events.push(trace_event);
+                        trace_span.events.push(trace_event);
+                    }
+                    WithEvent::Flatten => {
+                        event.record(trace_span);
+                    }
+                    _ => (),
+                }
             }
         }
     }
