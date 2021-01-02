@@ -84,15 +84,21 @@ impl TraceSpan {
 
     pub fn into_batch(self) -> newrelic::SpanBatch {
         let TraceSpan {
-            mut events, attrs, ..
+            mut events,
+            mut attrs,
+            ..
         } = self;
 
         let mut batch = newrelic::SpanBatch::new();
 
         let trace_id = next_trace_id();
 
+        if let Some(name) = attrs.remove(&String::from("name")) {
+            events[0].set_attribute("name", name.into());
+        }
+
         for (key, value) in attrs {
-            events[0].set_attribute(&key, value);
+            batch.set_attribute(&key, value);
         }
 
         for event in events {
