@@ -12,26 +12,22 @@ readme = "README.md"
 
 [dependencies]
 tracing-core = "0.1"
-tracing-subscriber = { version = "0.2", default-features = false, features = [
+tracing-subscriber = { version = "0.3", default-features = false, features = [
     "registry"
 ] }
 uuid = { version = "0.8", features = ["v4"] }
-
-[dependencies.newrelic]
-package = "newrelic-telemetry"
-git = "https://github.com/PoiScript/newrelic-telemetry-sdk-rust"
-rev = "f103d56898f599bf0d06e69d3ecc75147aa15d5e"
-features = ["blocking"]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+flate2 = "1.0"
+reqwest = "0.11"
+tokio = "1.16"
+futures = "0.3"
 
 [dev-dependencies]
-env_logger = "0.8.2"
-pretty_assertions = "0.6.1"
-tracing = "0.1.22"
+env_logger = "0.9"
+pretty_assertions = "1.1"
+tracing = "0.1"
 
 [features]
 # for integration testing only
-__mocking = []
-
-[[test]]
-name = "foobar"
-required-features = ["__mocking"]
+__testing = []

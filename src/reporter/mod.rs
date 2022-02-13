@@ -1,4 +1,4 @@
-use crate::span;
+use crate::types::{NrLog, NrSpan};
 
 /// Reports trace data
 ///
@@ -11,11 +11,9 @@ use crate::span;
 /// [`NoopReport`]: NoopReport
 /// [`BlockingReporter`]: BlockingReporter
 pub trait Reporter {
-    fn report(&self, span: span::TraceSpan);
+    fn report(&self, spans: Vec<NrSpan>, logs: Vec<NrLog>);
 }
 
 mod blocking;
-mod noop;
 
 pub use blocking::BlockingReporter;
-pub use noop::NoopReport;

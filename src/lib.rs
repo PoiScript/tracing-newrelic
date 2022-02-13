@@ -17,7 +17,7 @@
 //! use std::thread::sleep;
 //! use std::time::Duration;
 //!
-//! use tracing_newrelic::{NewRelicLayer, BlockingReporter};
+//! use tracing_newrelic::{NewRelicLayer, Api};
 //! use tracing_subscriber::layer::SubscriberExt;
 //!
 //! #[tracing::instrument]
@@ -39,9 +39,10 @@
 //! }
 //!
 //! fn main() {
-//!     let layer = NewRelicLayer::new(BlockingReporter::new(
-//!         "XXXX-XXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXX",
-//!     ));
+//!     let layer = NewRelicLayer::blocking(Api {
+//!         key: "XXXX-XXXXXXXX-XXXXXXXXXXXXXXXXXXXXXXX".into(),
+//!         ..Default::default()
+//!     });
 //!
 //!     let subscriber = tracing_subscriber::Registry::default().with(layer);
 //!
@@ -63,10 +64,13 @@
 //!
 //! MIT
 
+mod api;
 mod layer;
 mod reporter;
-mod span;
+mod types;
+mod utils;
 
-pub use layer::{NewRelicLayer, WithEvent};
-pub use reporter::*;
-pub use span::*;
+pub use api::{Api, ApiEndpoint};
+pub use layer::NewRelicLayer;
+pub use reporter::BlockingReporter;
+pub use types::{NrAttributes, NrLog, NrSpan};
