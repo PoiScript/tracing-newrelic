@@ -1,7 +1,9 @@
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fmt::Debug;
-use std::{collections::HashMap, time::SystemTime};
+use std::time::SystemTime;
 use tracing_core::field::{Field, Visit};
+use tracing_core::Level;
 
 use crate::utils::{next_span_id, now, serialize_system_time};
 
@@ -122,16 +124,20 @@ pub struct NrLog {
     pub timestamp: SystemTime,
     // event contains a field named message
     // pub message: String,
-    pub logtype: String,
+    /// parsing rules
+    // https://docs.newrelic.com/docs/logs/ui-data/parsing#logtype
+    pub logtype: &'static str,
     pub attributes: NrAttributes,
+    pub level: &'static str,
 }
 
 impl NrLog {
-    pub fn new(logtype: String) -> Self {
+    pub fn new(level: &Level) -> Self {
         NrLog {
             timestamp: now(),
-            logtype,
+            logtype: "accesslogs",
             attributes: NrAttributes::default(),
+            level: level.as_str(),
         }
     }
 }

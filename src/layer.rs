@@ -1,7 +1,5 @@
-use tracing_core::{
-    span::{Attributes, Id, Record},
-    Event, Subscriber,
-};
+use tracing_core::span::{Attributes, Id, Record};
+use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 use crate::{
@@ -77,7 +75,7 @@ where
             let metadata = event.metadata();
 
             // create a log
-            let mut nr_log = NrLog::new(metadata.level().to_string());
+            let mut nr_log = NrLog::new(metadata.level());
 
             if let Some(span_id) = extensions.get_mut::<NrSpan>().map(|s| s.id.clone()) {
                 // sÎet linking metadata
