@@ -1,46 +1,48 @@
+use std::thread::JoinHandle;
+
+use tokio::sync::mpsc::UnboundedSender;
 use tracing_core::span::{Attributes, Id, Record};
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::{
-    api::Api,
-    reporter::{BlockingReporter, Reporter},
-    types::{NrLog, NrSpan},
-    utils::next_trace_id,
-};
+use crate::types::{NewrAttributes, NewrCommon, NewrLog, NewrLogs, NewrSpan, NewrSpans};
+use crate::utils::next_trace_id;
 
 /// A [`Layer`] that collects newrelic-compatible data from `tracing` span/event.
 ///
-/// This layer collects data from `tracing` span/event and reports them using [`Reporter`].
-///
-/// By default it will includes fields, `span_name` and `duration`.
-/// You can override the default behavior using `with_*` methods.
-///
 /// [`Layer`]: tracing_subscriber::layer::Layer
-pub struct NewRelicLayer<R: Reporter> {
-    pub(crate) reporter: R,
+pub struct NewRelicLayer {
+    pub(crate) service_name: Option<String>,
+    pub(crate) hostname: Option<String>,
+
+    pub(crate) channel: Option<UnboundedSender<(NewrLogs, NewrSpans)>>,
+    pub(crate) handle: Option<JoinHandle<()>>,
 }
 
-impl NewRelicLayer<BlockingReporter> {
-    /// Create a new `NewRelicLayer` with given reporter
-    pub fn blocking(api: Api) -> Self {
-        NewRelicLayer {
-            reporter: BlockingReporter::new(api),
-        }
+impl NewRelicLayer {
+    /// Set service.name
+    pub fn with_service_name(mut self, i: String) -> Self {
+        self.service_name = Some(i);
+        self
+    }
+
+    /// Set hostname
+    pub fn with_hostname(mut self, i: String) -> Self {
+        self.hostname = Some(i);
+        self
     }
 }
 
-impl<S, R> Layer<S> for NewRelicLayer<R>
+impl<S> Layer<S> for NewRelicLayer
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
-    R: Reporter + 'static,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let span = ctx.span(id).expect("span not found");
         let metadata = span.metadata();
 
         // create a new span
-        let mut nr_span = NrSpan::new(metadata.name().to_string());
+        let mut nr_span = NewrSpan::new(metadata.name().to_string());
 
         nr_span.attributes.insert(
             "source",
@@ -62,7 +64,7 @@ where
         let span = ctx.span(id).expect("span not found");
         let mut extensions = span.extensions_mut();
 
-        if let Some(nr_span) = extensions.get_mut::<NrSpan>() {
+        if let Some(nr_span) = extensions.get_mut::<NewrSpan>() {
             values.record(&mut nr_span.attributes);
         }
     }
@@ -75,10 +77,10 @@ where
             let metadata = event.metadata();
 
             // create a log
-            let mut nr_log = NrLog::new(metadata.level());
+            let mut nr_log = NewrLog::new(metadata.level());
 
-            if let Some(span_id) = extensions.get_mut::<NrSpan>().map(|s| s.id.clone()) {
-                // sÎet linking metadata
+            if let Some(span_id) = extensions.get_mut::<NewrSpan>().map(|s| s.id.clone()) {
+                // add linking metadata
                 // https://github.com/newrelic/node-newrelic/blob/91967dd5cd997aa283b8aa0b2fdacc2a5f10a628/api.js#L132
                 nr_log.attributes.insert("span.id", span_id);
             }
@@ -96,7 +98,7 @@ where
             event.record(&mut nr_log.attributes);
 
             // insert into extensions
-            if let Some(nr_logs) = extensions.get_mut::<Vec<NrLog>>() {
+            if let Some(nr_logs) = extensions.get_mut::<Vec<NewrLog>>() {
                 nr_logs.push(nr_log);
             } else {
                 extensions.insert(vec![nr_log]);
@@ -108,42 +110,34 @@ where
         let span = ctx.span(&id).expect("span not found");
         let mut extensions = span.extensions_mut();
 
-        if let Some(mut nr_span) = extensions.remove::<NrSpan>() {
+        if let Some(mut nr_span) = extensions.remove::<NewrSpan>() {
             // update duration
             nr_span.update_duration();
 
-            let mut logs = extensions.remove::<Vec<NrLog>>().unwrap_or_default();
+            let mut logs = extensions.remove::<Vec<NewrLog>>().unwrap_or_default();
 
             let mut spans = vec![nr_span];
 
-            if let Some(mut children) = extensions.remove::<Vec<NrSpan>>() {
+            if let Some(mut children) = extensions.remove::<Vec<NewrSpan>>() {
                 spans.append(&mut children);
             };
 
             if let Some(parent) = span.parent() {
                 let mut parent_extensions = parent.extensions_mut();
 
-                if let Some(parent_span) = parent_extensions.get_mut::<NrSpan>() {
+                if let Some(parent_span) = parent_extensions.get_mut::<NewrSpan>() {
                     spans[0]
                         .attributes
                         .insert("parent.id", parent_span.id.clone());
 
-                    for span in &mut spans {
-                        span.attributes.merge(parent_span.attributes.clone());
-                    }
-
-                    for log in &mut logs {
-                        log.attributes.merge(parent_span.attributes.clone());
-                    }
-
-                    if let Some(siblings) = parent_extensions.get_mut::<Vec<NrSpan>>() {
+                    if let Some(siblings) = parent_extensions.get_mut::<Vec<NewrSpan>>() {
                         siblings.append(&mut spans);
                     } else {
                         parent_extensions.insert(spans);
                     }
 
                     if !logs.is_empty() {
-                        if let Some(parent_logs) = parent_extensions.get_mut::<Vec<NrLog>>() {
+                        if let Some(parent_logs) = parent_extensions.get_mut::<Vec<NewrLog>>() {
                             parent_logs.append(&mut logs);
                         } else {
                             parent_extensions.insert(logs);
@@ -164,10 +158,43 @@ where
                 log.attributes.insert("trace.id", trace_id.clone());
             }
 
-            dbg!(&spans);
-            dbg!(&logs);
+            if let Some(channel) = &self.channel {
+                let mut attributes = NewrAttributes::default();
 
-            self.reporter.report(spans, logs);
+                if let Some(service_name) = &self.service_name {
+                    attributes.insert("service.name", service_name.as_str());
+                }
+
+                if let Some(hostname) = &self.hostname {
+                    attributes.insert("hostname", hostname.as_str());
+                }
+
+                // TODO: error handling
+                let _ = channel.send((
+                    NewrLogs {
+                        logs,
+                        common: NewrCommon {
+                            attributes: attributes.clone(),
+                        },
+                    },
+                    NewrSpans {
+                        spans,
+                        common: NewrCommon { attributes },
+                    },
+                ));
+            }
+        }
+    }
+}
+
+impl Drop for NewRelicLayer {
+    fn drop(&mut self) {
+        if let Some(channel) = self.channel.take() {
+            drop(channel);
+        }
+
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
         }
     }
 }

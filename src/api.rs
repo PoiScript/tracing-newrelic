@@ -9,11 +9,16 @@ use std::cmp::max;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use super::types::{NrLog, NrSpan};
+use super::types::{NewrLogs, NewrSpans};
 
+#[derive(Clone)]
+/// Api Endpoint
 pub enum ApiEndpoint {
+    /// United States, Default
     US,
+    /// European Union
     EU,
+    /// Custom
     Custom(String),
 }
 
@@ -23,18 +28,41 @@ impl Default for ApiEndpoint {
     }
 }
 
+/// New relic Api
 #[derive(Default)]
 pub struct Api {
+    /// Log Api Endpoint
     pub log_endpoint: ApiEndpoint,
+    /// Trace Api Endpoint
     pub trace_endpoint: ApiEndpoint,
+    /// Api Key
     pub key: String,
+    /// Http Client
     pub client: Client,
+    /// Batch request size
+    pub batch_size: usize,
+
+    logs_queue: Vec<NewrLogs>,
+    spans_queue: Vec<NewrSpans>,
 }
 
 impl Api {
-    pub(crate) async fn send(&self, logs: Vec<Logs>, traces: Vec<Spans>) {
-        let mut logs_service = TracesService::new(logs);
-        let mut trace_service = TracesService::new(traces);
+    pub(crate) async fn push(&mut self, logs: NewrLogs, traces: NewrSpans) {
+        self.logs_queue.push(logs);
+        self.spans_queue.push(traces);
+
+        if self.logs_queue.len() > self.batch_size || self.spans_queue.len() > self.batch_size {
+            self.flush().await
+        }
+    }
+
+    pub(crate) async fn flush(&mut self) {
+        if self.logs_queue.is_empty() && self.spans_queue.is_empty() {
+            return;
+        }
+
+        let mut logs_service = TracesService::new(&self.logs_queue);
+        let mut trace_service = TracesService::new(&self.spans_queue);
 
         loop {
             use ServiceStatus::*;
@@ -44,10 +72,42 @@ impl Api {
 
                 (Timeount(d), _) | (_, Timeount(d)) => sleep(d).await,
 
-                (Finished, Finished) => return,
+                (Finished, Finished) => break,
 
                 _ => {}
             }
+        }
+
+        self.logs_queue.clear();
+        self.spans_queue.clear();
+    }
+}
+
+impl From<String> for Api {
+    fn from(key: String) -> Self {
+        Api {
+            key,
+            ..Default::default()
+        }
+    }
+}
+
+impl From<&str> for Api {
+    fn from(key: &str) -> Self {
+        Api {
+            key: key.to_string(),
+            ..Default::default()
+        }
+    }
+}
+
+impl From<(String, ApiEndpoint)> for Api {
+    fn from(t: (String, ApiEndpoint)) -> Self {
+        Api {
+            key: t.0,
+            log_endpoint: t.1.clone(),
+            trace_endpoint: t.1,
+            ..Default::default()
         }
     }
 }
@@ -63,15 +123,15 @@ enum ServiceStatus {
     Finished,
 }
 
-struct TracesService<T: Sendable> {
-    data: Vec<T>,
+struct TracesService<'a, T: Sendable> {
+    data: &'a [T],
     // number of items to send each request,
     batch_len: usize,
     retry_count: u32,
 }
 
-impl<T: Sendable> TracesService<T> {
-    fn new(data: Vec<T>) -> Self {
+impl<'a, T: Sendable> TracesService<'a, T> {
+    fn new(data: &'a [T]) -> Self {
         TracesService {
             batch_len: data.len(),
             data,
@@ -85,10 +145,9 @@ impl<T: Sendable> TracesService<T> {
             return ServiceStatus::Finished;
         }
 
-        let res = T::build_request(&self.data[0..self.batch_len], api)
-            .send()
-            .await
-            .unwrap();
+        let (left, right) = self.data.split_at(self.batch_len);
+
+        let res = T::build_request(left, api).send().await.unwrap();
 
         // https://docs.newrelic.com/docs/distributed-tracing/trace-api/trace-api-general-requirements-limits#status-codes
         match res.status().as_u16() {
@@ -97,7 +156,7 @@ impl<T: Sendable> TracesService<T> {
                 // reset retry_count
                 self.retry_count = 0;
 
-                self.data.drain(0..self.batch_len);
+                self.data = right;
 
                 if self.data.is_empty() {
                     ServiceStatus::Finished
@@ -161,13 +220,8 @@ trait Sendable {
         Self: Sized;
 }
 
-#[derive(Serialize)]
-pub struct Logs {
-    pub logs: Vec<NrLog>,
-}
-
-impl Sendable for Logs {
-    fn build_request(data: &[Logs], api: &Api) -> RequestBuilder {
+impl Sendable for NewrLogs {
+    fn build_request(data: &[NewrLogs], api: &Api) -> RequestBuilder {
         let url = match &api.log_endpoint {
             ApiEndpoint::US => "https://log-api.newrelic.com/log/v1".into(),
             ApiEndpoint::EU => "https://log-api.eu.newrelic.com/log/v1".into(),
@@ -183,13 +237,8 @@ impl Sendable for Logs {
     }
 }
 
-#[derive(Serialize)]
-pub struct Spans {
-    pub spans: Vec<NrSpan>,
-}
-
-impl Sendable for Spans {
-    fn build_request(data: &[Spans], api: &Api) -> RequestBuilder {
+impl Sendable for NewrSpans {
+    fn build_request(data: &[NewrSpans], api: &Api) -> RequestBuilder {
         let url = match &api.log_endpoint {
             ApiEndpoint::US => "https://trace-api.newrelic.com/trace/v1".into(),
             ApiEndpoint::EU => "https://trace-api.eu.newrelic.com/trace/v1".into(),

@@ -47,21 +47,15 @@ impl From<&str> for Value {
 }
 
 #[derive(Serialize, Default, Clone, Debug)]
-pub struct NrAttributes(pub HashMap<String, Value>);
+pub struct NewrAttributes(pub HashMap<String, Value>);
 
-impl NrAttributes {
+impl NewrAttributes {
     pub fn insert<V: Into<Value>>(&mut self, key: &str, val: V) {
         self.0.insert(key.into(), val.into());
     }
-
-    pub fn merge(&mut self, map: NrAttributes) {
-        for (k, v) in map.0 {
-            self.0.entry(k).or_insert(v);
-        }
-    }
 }
 
-impl Visit for NrAttributes {
+impl Visit for NewrAttributes {
     fn record_bool(&mut self, field: &Field, value: bool) {
         self.insert(field.name(), value);
     }
@@ -84,7 +78,7 @@ impl Visit for NrAttributes {
 }
 
 #[derive(Serialize, Debug)]
-pub struct NrSpan {
+pub struct NewrSpan {
     /// Unique identifier for this span.
     pub id: String,
     /// Unique identifier shared by all spans within a single trace.
@@ -94,15 +88,15 @@ pub struct NrSpan {
     /// Span start time in milliseconds since the Unix epoch.
     pub timestamp: SystemTime,
     /// Any set of key: value pairs that add more details about a span.
-    pub attributes: NrAttributes,
+    pub attributes: NewrAttributes,
 }
 
-impl NrSpan {
+impl NewrSpan {
     pub fn new(name: String) -> Self {
-        let mut attributes = NrAttributes::default();
+        let mut attributes = NewrAttributes::default();
         attributes.insert("name", name);
 
-        NrSpan {
+        NewrSpan {
             id: next_span_id(),
             trace_id: None,
             timestamp: now(),
@@ -119,7 +113,7 @@ impl NrSpan {
 }
 
 #[derive(Serialize, Debug)]
-pub struct NrLog {
+pub struct NewrLog {
     #[serde(serialize_with = "serialize_system_time")]
     pub timestamp: SystemTime,
     // event contains a field named message
@@ -127,17 +121,34 @@ pub struct NrLog {
     /// parsing rules
     // https://docs.newrelic.com/docs/logs/ui-data/parsing#logtype
     pub logtype: &'static str,
-    pub attributes: NrAttributes,
+    pub attributes: NewrAttributes,
     pub level: &'static str,
 }
 
-impl NrLog {
+impl NewrLog {
     pub fn new(level: &Level) -> Self {
-        NrLog {
+        NewrLog {
             timestamp: now(),
             logtype: "accesslogs",
-            attributes: NrAttributes::default(),
+            attributes: NewrAttributes::default(),
             level: level.as_str(),
         }
     }
+}
+
+#[derive(Serialize)]
+pub struct NewrCommon {
+    pub attributes: NewrAttributes,
+}
+
+#[derive(Serialize)]
+pub struct NewrLogs {
+    pub logs: Vec<NewrLog>,
+    pub common: NewrCommon,
+}
+
+#[derive(Serialize)]
+pub struct NewrSpans {
+    pub spans: Vec<NewrSpan>,
+    pub common: NewrCommon,
 }
