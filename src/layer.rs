@@ -5,32 +5,15 @@ use tracing_core::span::{Attributes, Id, Record};
 use tracing_core::{Event, Subscriber};
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-use crate::types::{NewrAttributes, NewrCommon, NewrLog, NewrLogs, NewrSpan, NewrSpans};
+use crate::types::{NewrAttributes, NewrCommon, NewrLog, NewrLogs, NewrSpan, NewrSpans, Value};
 use crate::utils::next_trace_id;
 
 /// A [`Layer`] that collects newrelic-compatible data from `tracing` span/event.
 ///
 /// [`Layer`]: tracing_subscriber::layer::Layer
 pub struct NewRelicLayer {
-    pub(crate) service_name: Option<String>,
-    pub(crate) hostname: Option<String>,
-
     pub(crate) channel: Option<UnboundedSender<(NewrLogs, NewrSpans)>>,
     pub(crate) handle: Option<JoinHandle<()>>,
-}
-
-impl NewRelicLayer {
-    /// Set service.name
-    pub fn with_service_name(mut self, i: String) -> Self {
-        self.service_name = Some(i);
-        self
-    }
-
-    /// Set hostname
-    pub fn with_hostname(mut self, i: String) -> Self {
-        self.hostname = Some(i);
-        self
-    }
 }
 
 impl<S> Layer<S> for NewRelicLayer
@@ -161,11 +144,13 @@ where
             if let Some(channel) = &self.channel {
                 let mut attributes = NewrAttributes::default();
 
-                if let Some(service_name) = &self.service_name {
+                if let Some(Value::String(service_name)) =
+                    &spans[0].attributes.0.get("service.name")
+                {
                     attributes.insert("service.name", service_name.as_str());
                 }
 
-                if let Some(hostname) = &self.hostname {
+                if let Some(Value::String(hostname)) = &spans[0].attributes.0.get("hostname") {
                     attributes.insert("hostname", hostname.as_str());
                 }
 

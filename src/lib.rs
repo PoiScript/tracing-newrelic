@@ -38,8 +38,7 @@
 //! }
 //!
 //! fn main() {
-//!     let layer = tracing_newrelic::layer("YOUR-API-KEY")
-//!         .with_service_name(String::from("tracing-newr-demo"));
+//!     let layer = tracing_newrelic::layer("YOUR-API-KEY");
 //!
 //!     let subscriber = tracing_subscriber::Registry::default().with(layer);
 //!
@@ -56,6 +55,24 @@
 //! <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot.png" alt="newrelic screenshot" />
 //!
 //! [New Relic One]: http://one.newrelic.com
+//!
+//! And I strongly recommend include these attributes in your spans:
+//!
+//! 1. `span.kind`
+//!
+//!     New Relic creates throught and response time dashboards for spans with `span.kind` set to `server` and `consumer`.
+//!
+//! 2. `otel.status_code` & `otel.status_description`
+//!
+//!     New Relic creates error rate dashboard for spans with `otel.status_code` set to `ERROR`.
+//!
+//! 3. `service.name`
+//!
+//!     New Relic group entity by their `service.name` field.
+//!
+//! 4. `name`
+//!
+//!     New Relic group trnsations by their `name` field.
 //!
 //! # License
 //!
@@ -106,8 +123,6 @@ pub fn layer(api: impl Into<Api>) -> NewRelicLayer {
         .expect("failed to spawn thread");
 
     NewRelicLayer {
-        service_name: None,
-        hostname: None,
         handle: Some(handle),
         channel: Some(tx),
     }

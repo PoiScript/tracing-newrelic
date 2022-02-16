@@ -21,15 +21,17 @@ fn fibonacci(n: u32) -> u32 {
 fn main() {
     env_logger::init();
 
-    let newrelic = tracing_newrelic::layer(var("API_KEY").expect("API_KEY not found"))
-        .with_service_name(String::from("fibonacci"));
+    let newrelic = tracing_newrelic::layer(var("API_KEY").expect("API_KEY not found"));
 
     let fmt = tracing_subscriber::fmt::layer();
 
     let subscriber = Registry::default().with(newrelic).with(fmt);
 
     tracing::subscriber::with_default(subscriber, || {
-        let span = tracing::info_span!("calculating fibonacci(3)");
+        let span = tracing::info_span!(
+            "calculating fibonacci(3)",
+            service.name = "tracing-newrelic-demo"
+        );
 
         let _enter = span.enter();
 
