@@ -19,32 +19,41 @@ This crate provides a layer for collecting trace data from [`tracing`] and sendi
 use std::thread::sleep;
 use std::time::Duration;
 
-use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{layer::SubscriberExt, Registry};
 
-#[tracing::instrument]
-fn foo(_: u32) {
-    sleep(Duration::from_millis(123));
-}
+#[tracing::instrument(name = "fibonacci()")]
+fn fibonacci(n: u32) -> u32 {
+    let ms = 100 * n as u64;
 
-#[tracing::instrument]
-fn bar(a: u32) {
-    sleep(Duration::from_millis(456));
-    foo(a);
-    sleep(Duration::from_millis(789));
-}
+    tracing::info!(n = n, "sleep {}ms", ms);
 
-#[tracing::instrument]
-fn foobar() {
-    foo(1);
-    bar(2);
+    sleep(Duration::from_millis(ms));
+
+    match n {
+        0 | 1 => 1,
+        _ => fibonacci(n - 1) + fibonacci(n - 2),
+    }
 }
 
 fn main() {
-    let layer = tracing_newrelic::layer("YOUR-API-KEY");
+    env_logger::init();
 
-    let subscriber = tracing_subscriber::Registry::default().with(layer);
+    let newrelic = tracing_newrelic::layer("YOUR-API-KEY");
 
-    tracing::subscriber::with_default(subscriber, foobar);
+    let fmt = tracing_subscriber::fmt::layer();
+
+    let subscriber = Registry::default().with(newrelic).with(fmt);
+
+    tracing::subscriber::with_default(subscriber, || {
+        let span = tracing::info_span!(
+            "calculating fibonacci(3)",
+            service.name = "tracing-newrelic-demo"
+        );
+
+        let _enter = span.enter();
+
+        fibonacci(3);
+    });
 }
 ```
 
@@ -52,9 +61,9 @@ fn main() {
 
 2. Open [New Relic One], navigate to `Entity explorer` and search for `tracing-newrelic-demo`.
 
-3. You should see a entry span named `foobar` and click it for more details:
+3. You should see a entry span named `calculating fibonacci(3)` and click it for more details:
 
-<img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot.png" alt="newrelic screenshot" />
+<img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/distributed-tracing.jpg"  width="804" height="570"  alt="newrelic screenshot" />
 
 [New Relic One]: http://one.newrelic.com
 
@@ -64,17 +73,25 @@ And I strongly recommend include these attributes in your spans:
 
     New Relic creates throught and response time dashboards for spans with `span.kind` set to `server` and `consumer`.
 
+    <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/throughtput-reponse-time.jpg" width="691" height="315" alt="newrelic throughtput-reponse-time" />
+
 2. `otel.status_code` & `otel.status_description`
 
     New Relic creates error rate dashboard for spans with `otel.status_code` set to `ERROR`.
+
+    <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/error-rate.jpg" alt="newrelic error-rate"   width="344" height="345"   />
 
 3. `service.name`
 
     New Relic group entity by their `service.name` field.
 
+    <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/services.jpg"  alt="newrelic services"  width="713" height="174"  />
+
 4. `name`
 
     New Relic group trnsations by their `name` field.
+
+    <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/transactions.jpg"  alt="newrelic transactions"  width="614" height="326"  />
 
 ## License
 
