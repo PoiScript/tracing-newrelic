@@ -50,7 +50,7 @@ fn main() {
 
 1. Replace `YOUR-API-KEY` above with your api key and run it.
 
-2. Open [New Relic One], navigate to `Entity explorer` and search for `tracing-newr-demo`.
+2. Open [New Relic One], navigate to `Entity explorer` and search for `tracing-newrelic-demo`.
 
 3. You should see a entry span named `foobar` and click it for more details:
 

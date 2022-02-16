@@ -1,5 +1,5 @@
 use flate2::{write::GzEncoder, Compression};
-use futures::join;
+use futures_util::join;
 use reqwest::{
     header::{CONTENT_ENCODING, CONTENT_TYPE},
     Client, RequestBuilder,
@@ -61,8 +61,14 @@ impl Api {
             return;
         }
 
-        let mut logs_service = TracesService::new(&self.logs_queue);
-        let mut trace_service = TracesService::new(&self.spans_queue);
+        log::debug!(
+            "flushing logs and traces, logs_queue_len={}, spans_queue_len={}",
+            self.logs_queue.len(),
+            self.spans_queue.len(),
+        );
+
+        let mut logs_service = Service::new(&self.logs_queue);
+        let mut trace_service = Service::new(&self.spans_queue);
 
         loop {
             use ServiceStatus::*;
@@ -72,14 +78,21 @@ impl Api {
 
                 (Timeount(d), _) | (_, Timeount(d)) => sleep(d).await,
 
-                (Finished, Finished) => break,
+                (Finished, Finished) => {
+                    log::info!(
+                        "flushed logs and traces, logs_queue_len={}, spans_queue_len={}",
+                        self.logs_queue.len(),
+                        self.spans_queue.len(),
+                    );
+
+                    self.logs_queue.clear();
+                    self.spans_queue.clear();
+                    return;
+                }
 
                 _ => {}
             }
         }
-
-        self.logs_queue.clear();
-        self.spans_queue.clear();
     }
 }
 
@@ -123,16 +136,16 @@ enum ServiceStatus {
     Finished,
 }
 
-struct TracesService<'a, T: Sendable> {
+struct Service<'a, T: Sendable> {
     data: &'a [T],
     // number of items to send each request,
     batch_len: usize,
     retry_count: u32,
 }
 
-impl<'a, T: Sendable> TracesService<'a, T> {
+impl<'a, T: Sendable> Service<'a, T> {
     fn new(data: &'a [T]) -> Self {
-        TracesService {
+        Service {
             batch_len: data.len(),
             data,
             retry_count: 0,
@@ -149,10 +162,19 @@ impl<'a, T: Sendable> TracesService<'a, T> {
 
         let res = T::build_request(left, api).send().await.unwrap();
 
+        let status = res.status().as_u16();
+
         // https://docs.newrelic.com/docs/distributed-tracing/trace-api/trace-api-general-requirements-limits#status-codes
-        match res.status().as_u16() {
+        match status {
             // success
             200..=299 => {
+                log::debug!(
+                    "recevied {} response, sent={}, remaining={}",
+                    status,
+                    left.len(),
+                    right.len(),
+                );
+
                 // reset retry_count
                 self.retry_count = 0;
 
@@ -165,12 +187,19 @@ impl<'a, T: Sendable> TracesService<'a, T> {
                 }
             }
 
-            400 | 401 | 403 | 404 | 405 | 409 | 410 | 411 => ServiceStatus::Finished,
+            400 | 401 | 403 | 404 | 405 | 409 | 410 | 411 => {
+                log::info!("recevied {} response", status);
+
+                ServiceStatus::Finished
+            }
 
             // 	The payload was too big.
             413 => {
+                log::debug!("recevied 413 response, splitting payload");
+
                 if self.batch_len == 1 {
-                    // TODO: error
+                    log::info!("dropping paylod");
+
                     ServiceStatus::Finished
                 } else {
                     self.batch_len %= 2;
@@ -180,33 +209,45 @@ impl<'a, T: Sendable> TracesService<'a, T> {
 
             // The request rate quota has been exceeded.
             429 => {
-                let duration = res
+                let seconds = res
                     .headers()
                     .get("retry-after")
                     .and_then(|val| val.to_str().ok())
-                    .and_then(|val| val.parse::<u64>().ok())
-                    .map(Duration::from_secs);
+                    .and_then(|val| val.parse::<u64>().ok());
 
-                match duration {
-                    Some(duration) => ServiceStatus::Timeount(duration),
-                    // TODO: error
-                    _ => ServiceStatus::Finished,
+                match seconds {
+                    Some(s) => {
+                        log::debug!("recevied 429 response, retry after {} seconds", s);
+                        ServiceStatus::Timeount(Duration::from_secs(s))
+                    }
+                    None => {
+                        log::debug!("recevied 429 response, but `retry-after` not persent");
+                        ServiceStatus::Finished
+                    }
                 }
             }
 
             _ => {
                 if self.retry_count == 0 {
+                    log::info!(
+                        "recevied {} response, retry immediately, retry_count={}",
+                        status,
+                        self.retry_count,
+                    );
                     self.retry_count += 1;
-                    // retry immediately
                     ServiceStatus::Timeount(Duration::from_secs(0))
                 } else if self.retry_count <= 5 {
+                    let s = 2_u64.pow(self.retry_count - 1_u32); // 2^n
+                    log::info!(
+                        "recevied {} response, retry after {} seconds, retry_count={}",
+                        status,
+                        s,
+                        self.retry_count,
+                    );
                     self.retry_count += 1;
-                    // retry after 2^n seconds
-                    ServiceStatus::Timeount(Duration::from_secs(
-                        2_u64.pow(self.retry_count - 1_u32),
-                    ))
+                    ServiceStatus::Timeount(Duration::from_secs(s))
                 } else {
-                    // TODO: error
+                    log::info!("recevied {} response, reached max retry count", status);
                     ServiceStatus::Finished
                 }
             }
