@@ -65,6 +65,10 @@ fn main() {
 
 <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/distributed-tracing.jpg"  width="804" height="570"  alt="newrelic screenshot" />
 
+4. Click `See logs` to view all events inside this span:
+
+<img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/log-in-context.jpg"  width="825" height="440"  alt="newrelic screenshot" />
+
 [New Relic One]: http://one.newrelic.com
 
 And I strongly recommend include these attributes in your spans:

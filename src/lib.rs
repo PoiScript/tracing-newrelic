@@ -14,7 +14,6 @@
 //! # Examples
 //!
 //! ```rust
-//! use std::env::var;
 //! use std::thread::sleep;
 //! use std::time::Duration;
 //!
@@ -63,6 +62,10 @@
 //! 3. You should see a entry span named `calculating fibonacci(3)` and click it for more details:
 //!
 //! <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/distributed-tracing.jpg"  width="804" height="570"  alt="newrelic screenshot" />
+//!
+//! 4. Click `See logs` to view all events inside this span:
+//!
+//! <img src="https://raw.githubusercontent.com/PoiScript/tracing-newrelic/a/screenshot/log-in-context.jpg"  width="825" height="440"  alt="newrelic screenshot" />
 //!
 //! [New Relic One]: http://one.newrelic.com
 //!
