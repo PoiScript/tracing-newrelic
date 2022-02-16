@@ -29,7 +29,6 @@ impl Default for ApiEndpoint {
 }
 
 /// New relic Api
-#[derive(Default)]
 pub struct Api {
     /// Log Api Endpoint
     pub log_endpoint: ApiEndpoint,
@@ -48,10 +47,16 @@ pub struct Api {
 
 impl Api {
     pub(crate) async fn push(&mut self, logs: NewrLogs, traces: NewrSpans) {
+        log::debug!(
+            "pushing logs and traces, logs_queue_len={}, spans_queue_len={}",
+            self.logs_queue.len(),
+            self.spans_queue.len(),
+        );
+
         self.logs_queue.push(logs);
         self.spans_queue.push(traces);
 
-        if self.logs_queue.len() > self.batch_size || self.spans_queue.len() > self.batch_size {
+        if self.logs_queue.len() >= self.batch_size || self.spans_queue.len() >= self.batch_size {
             self.flush().await
         }
     }
@@ -92,6 +97,20 @@ impl Api {
 
                 _ => {}
             }
+        }
+    }
+}
+
+impl Default for Api {
+    fn default() -> Self {
+        Api {
+            log_endpoint: ApiEndpoint::default(),
+            trace_endpoint: ApiEndpoint::default(),
+            key: String::new(),
+            client: Client::new(),
+            batch_size: 10,
+            logs_queue: Vec::with_capacity(10),
+            spans_queue: Vec::with_capacity(10),
         }
     }
 }
