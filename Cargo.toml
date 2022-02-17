@@ -1,6 +1,6 @@
 [package]
 name = "tracing-newrelic"
-version = "0.0.2"
+version = "0.1.0"
 authors = ["PoiScript <poiscript@gmail.com>"]
 description = "New Relic integration for tracing"
 edition = "2018"
