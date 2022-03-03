@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use tracing_core::field::{Field, Visit};
 use tracing_core::Level;
 
@@ -98,6 +98,9 @@ pub struct NewrSpan {
     #[serde(serialize_with = "serialize_system_time")]
     /// Span start time in milliseconds since the Unix epoch.
     pub timestamp: SystemTime,
+    /// Instant the span was created.
+    #[serde(skip)]
+    pub instant: Instant,
     /// Any set of key: value pairs that add more details about a span.
     pub attributes: NewrAttributes,
 }
@@ -111,15 +114,15 @@ impl NewrSpan {
             id: next_span_id(),
             trace_id: None,
             timestamp: now(),
+            instant: Instant::now(),
             attributes,
         }
     }
 
     pub fn update_duration(&mut self) {
-        if let Ok(duration) = SystemTime::now().duration_since(self.timestamp) {
-            self.attributes
-                .insert("duration.ms", duration.as_millis() as u64);
-        }
+        let duration = self.instant.elapsed();
+        let duration_ms = duration.as_secs_f64() * 1000.0;
+        self.attributes.insert("duration.ms", duration_ms);
     }
 }
 
