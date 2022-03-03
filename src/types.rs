@@ -12,6 +12,7 @@ use crate::utils::{next_span_id, now, serialize_system_time};
 pub enum Value {
     I64(i64),
     U64(u64),
+    F64(f64),
     Bool(bool),
     String(String),
 }
@@ -25,6 +26,12 @@ impl From<i64> for Value {
 impl From<u64> for Value {
     fn from(i: u64) -> Self {
         Value::U64(i)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(i: f64) -> Self {
+        Value::F64(i)
     }
 }
 
@@ -61,6 +68,10 @@ impl Visit for NewrAttributes {
     }
 
     fn record_i64(&mut self, field: &Field, value: i64) {
+        self.insert(field.name(), value);
+    }
+
+    fn record_f64(&mut self, field: &Field, value: f64) {
         self.insert(field.name(), value);
     }
 
