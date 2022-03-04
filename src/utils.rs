@@ -1,5 +1,8 @@
 use serde::Serializer;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    convert::TryInto as _,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use uuid::Uuid;
 
 #[inline]
@@ -52,8 +55,10 @@ pub fn serialize_system_time<S>(time: &SystemTime, s: S) -> Result<S::Ok, S::Err
 where
     S: Serializer,
 {
-    if let Ok(duration) = time.duration_since(UNIX_EPOCH) {
-        s.serialize_u64(duration.as_millis() as u64)
+    let duration = time.duration_since(UNIX_EPOCH).ok();
+    let duration_ms = duration.and_then(|duration| duration.as_millis().try_into().ok());
+    if let Some(duration_ms) = duration_ms {
+        s.serialize_u64(duration_ms)
     } else {
         s.serialize_none()
     }
