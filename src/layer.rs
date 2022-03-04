@@ -56,13 +56,16 @@ where
         // ignore event that is out of current span
         if let Some(id) = ctx.current_span().id() {
             let span = ctx.span(id).expect("span not found");
-            let mut extensions = span.extensions_mut();
             let metadata = event.metadata();
 
             // create a log
             let mut nr_log = NewrLog::new(metadata.level());
 
-            if let Some(span_id) = extensions.get_mut::<NewrSpan>().map(|s| s.id.clone()) {
+            let span_id = span
+                .extensions_mut()
+                .get_mut::<NewrSpan>()
+                .map(|s| s.id.clone());
+            if let Some(span_id) = span_id {
                 // add linking metadata
                 // https://github.com/newrelic/node-newrelic/blob/91967dd5cd997aa283b8aa0b2fdacc2a5f10a628/api.js#L132
                 nr_log.attributes.insert("span.id", span_id);
@@ -77,10 +80,18 @@ where
                 ),
             );
 
+            for scope in ctx.event_scope(event).into_iter().flatten() {
+                let scope_extensions = scope.extensions();
+                if let Some(scope_nr_span) = scope_extensions.get::<NewrSpan>() {
+                    nr_log.attributes.append(&scope_nr_span.attributes);
+                }
+            }
+
             // record event attributes
             event.record(&mut nr_log.attributes);
 
             // insert into extensions
+            let mut extensions = span.extensions_mut();
             if let Some(nr_logs) = extensions.get_mut::<Vec<NewrLog>>() {
                 nr_logs.push(nr_log);
             } else {
