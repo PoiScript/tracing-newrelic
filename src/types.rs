@@ -60,6 +60,12 @@ impl NewrAttributes {
     pub fn insert<V: Into<Value>>(&mut self, key: &str, val: V) {
         self.0.insert(key.into(), val.into());
     }
+
+    pub fn append(&mut self, other: &Self) {
+        for (key, val) in &other.0 {
+            self.0.entry(key.into()).or_insert_with(|| val.clone());
+        }
+    }
 }
 
 impl Visit for NewrAttributes {
