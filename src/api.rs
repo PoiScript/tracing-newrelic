@@ -1,9 +1,6 @@
 use flate2::{write::GzEncoder, Compression};
 use futures_util::join;
-use reqwest::{
-    header::{CONTENT_ENCODING, CONTENT_TYPE},
-    Client, RequestBuilder,
-};
+use reqwest::{header::{CONTENT_ENCODING, CONTENT_TYPE}, Client, RequestBuilder};
 use serde::Serialize;
 use std::cmp::max;
 use std::time::Duration;
@@ -179,7 +176,13 @@ impl<'a, T: Sendable> Service<'a, T> {
 
         let (left, right) = self.data.split_at(self.batch_len);
 
-        let res = T::build_request(left, api).send().await.unwrap();
+        let res = match T::build_request(left, api).send().await {
+            Ok(res) => res,
+            Err(error) => {
+                log::warn!("request failed with: {error}, retrying");
+                return self.retry(None);
+            }
+        };
 
         let status = res.status().as_u16();
 
@@ -247,29 +250,35 @@ impl<'a, T: Sendable> Service<'a, T> {
             }
 
             _ => {
-                if self.retry_count == 0 {
-                    log::info!(
+                self.retry(Some(status))
+            }
+        }
+    }
+
+    fn retry(&mut self, status: Option<u16>) -> ServiceStatus {
+        let status = status.map(|status| status.to_string()).unwrap_or_else(|| "<none>".to_owned());
+
+        if self.retry_count == 0 {
+            log::info!(
                         "recevied {} response, retry immediately, retry_count={}",
                         status,
                         self.retry_count,
                     );
-                    self.retry_count += 1;
-                    ServiceStatus::Timeount(Duration::from_secs(0))
-                } else if self.retry_count <= 5 {
-                    let s = 2_u64.pow(self.retry_count - 1_u32); // 2^n
-                    log::info!(
+            self.retry_count += 1;
+            ServiceStatus::Timeount(Duration::from_secs(0))
+        } else if self.retry_count <= 5 {
+            let s = 2_u64.pow(self.retry_count - 1_u32); // 2^n
+            log::info!(
                         "recevied {} response, retry after {} seconds, retry_count={}",
                         status,
                         s,
                         self.retry_count,
                     );
-                    self.retry_count += 1;
-                    ServiceStatus::Timeount(Duration::from_secs(s))
-                } else {
-                    log::info!("recevied {} response, reached max retry count", status);
-                    ServiceStatus::Finished
-                }
-            }
+            self.retry_count += 1;
+            ServiceStatus::Timeount(Duration::from_secs(s))
+        } else {
+            log::info!("recevied {} response, reached max retry count", status);
+            ServiceStatus::Finished
         }
     }
 }
