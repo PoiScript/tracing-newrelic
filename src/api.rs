@@ -176,7 +176,13 @@ impl<'a, T: Sendable> Service<'a, T> {
 
         let (left, right) = self.data.split_at(self.batch_len);
 
-        let res = T::build_request(left, api).send().await.unwrap();
+        let res = match T::build_request(left, api).send().await {
+            Ok(res) => res,
+            Err(error) => {
+                log::warn!("request failed with: {error}, retrying");
+                return self.retry(None);
+            }
+        };
 
         let status = res.status().as_u16();
 
