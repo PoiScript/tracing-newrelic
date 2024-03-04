@@ -244,12 +244,14 @@ impl<'a, T: Sendable> Service<'a, T> {
             }
 
             _ => {
-                self.retry(status)
+                self.retry(Some(status))
             }
         }
     }
 
-    fn retry(&mut self, status: u16) -> ServiceStatus {
+    fn retry(&mut self, status: Option<u16>) -> ServiceStatus {
+        let status = status.map(|status| status.to_string()).unwrap_or_else(|| "<none>".to_owned());
+
         if self.retry_count == 0 {
             log::info!(
                         "recevied {} response, retry immediately, retry_count={}",
